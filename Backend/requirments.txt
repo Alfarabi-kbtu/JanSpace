@@ -1,0 +1,18 @@
+# requirements.txt
+
+Django>=5.0,<6.0
+djangorestframework          # DRF — сериализаторы, вьюхи, роутеры
+django-cors-headers          # разрешает запросы с фронтенда (другой домен/порт)
+python-decouple               # чтение переменных из .env (секреты, DEBUG и т.д.)
+psycopg2-binary               # драйвер PostgreSQL
+django-filter                 # фильтрация querysets по параметрам запроса
+djangorestframework-simplejwt # JWT-аутентификация
+Pillow                        # обработка изображений (пригодится, если будут картинки товаров)
+django-storages   # позволяет Django использовать S3 как хранилище файлов вместо диска
+boto3              # официальный SDK Amazon для работы с AWS (S3, и не только)
+channels           # добавляет поддержку WebSocket в Django
+channels-redis      # channel layer на основе Redis (для передачи сообщений между процессами)
+daphne              # ASGI-сервер, нужен вместо обычного WSGI для WebSocket
+redis<5.0.0
+sentry-sdk[django]  # мониторинг и логирование необработанных ошибок (500-х) в Sentry
+whitenoise          # раздача статики (админка, DRF) прямо из Daphne — нужно для Railway (нет nginx перед контейнером)

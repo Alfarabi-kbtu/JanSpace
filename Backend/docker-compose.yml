@@ -1,0 +1,69 @@
+services:
+  db:
+    image: postgres:16-alpine
+    # postgres-образ сам читает POSTGRES_DB/POSTGRES_USER/POSTGRES_PASSWORD
+    # из окружения и создаёт базу с этими данными при первом запуске —
+    # берём те же значения, что и Django, из общего .env
+    env_file:
+      - .env
+    volumes:
+      # именованный volume — данные Postgres переживают "docker compose down"
+      # (пропадут только при down -v)
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      # проброшено наружу для удобства (например, подключиться DBeaver/psql с хоста);
+      # для самого приложения это не нужно — оно ходит внутри docker-сети по имени "db"
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    # channels-redis (клиент в коде) требует redis<5.0.0 из-за Windows-бага
+    # с asyncio.timeout (см. CLAUDE.md) — это про Python-пакет redis-py,
+    # а не про версию сервера Redis, поэтому образ Redis 7 использовать можно
+    ports:
+      - "6379:6379"
+
+  web:
+    build: .
+    # монтируем код проекта поверх скопированного в образ — изменения файлов
+    # на хосте сразу видны в контейнере, Django runserver сам перезапускается
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # переопределяем хосты из .env (там localhost/127.0.0.1 — для запуска без Docker):
+      # внутри docker-сети сервисы видны друг другу по имени сервиса, а не по localhost
+      POSTGRES_HOST: db
+      REDIS_HOST: redis
+    depends_on:
+      - db
+      - redis
+
+  frontend:
+    build: ../Frontend
+    # монтируем код фронтенда поверх образа — аналогично сервису "web",
+    # next dev сам подхватывает изменения. node_modules и .next — ОТДЕЛЬНЫЕ
+    # именованные volume'ы, а не часть бинда: если бы они пришли с хоста,
+    # там оказался бы Windows-собранный node_modules (нативный бинарник
+    # Turbopack под Windows), а контейнер — Linux. Именованный volume при
+    # первом запуске автоматически наполняется содержимым из образа
+    # (где node_modules уже поставлен через npm ci для Linux) и дальше
+    # живёт независимо от бинда хоста
+    volumes:
+      - ../Frontend:/app
+      - frontend_node_modules:/app/node_modules
+      - frontend_next_cache:/app/.next
+    ports:
+      - "3000:3000"
+    env_file:
+      - ../Frontend/.env.local
+    depends_on:
+      - web
+
+volumes:
+  postgres_data:
+  frontend_node_modules:
+  frontend_next_cache:
