@@ -15,6 +15,32 @@ class Category(models.Model):
         help_text="Название категории для услуг (например: 'Ремонт')"
     )
 
+    # Особый тип категории. По умолчанию — обычная категория товаров/услуг.
+    # kind=delivery/preorder — категории способов получения заказа (см.
+    # orders.Order.fulfillment_type/preorder_requested). kind=engraving —
+    # категория услуг, которые можно привязать к КОНКРЕТНОМУ товару в корзине
+    # (гравировка, подарочная упаковка и т.п., см. orders.OrderServiceItem) —
+    # название "engraving" исторически от первой такой услуги, охватывает
+    # любые привязываемые к товару доп.услуги, не только буквально гравировку.
+    KIND_REGULAR = "regular"
+    KIND_DELIVERY = "delivery"
+    KIND_ENGRAVING = "engraving"
+    KIND_PREORDER = "preorder"
+
+    KIND_CHOICES = [
+        (KIND_REGULAR, "Обычная категория"),
+        (KIND_DELIVERY, "Доставка"),
+        (KIND_ENGRAVING, "Гравировка"),
+        (KIND_PREORDER, "Предзаказ"),
+    ]
+
+    kind = models.CharField(
+        max_length=20,
+        choices=KIND_CHOICES,
+        default=KIND_REGULAR,
+        help_text="Обычная категория или один из способов оформления заказа (доставка/гравировка/предзаказ)"
+    )
+
     class Meta:
         verbose_name = "Category"
         verbose_name_plural = "Categories"
