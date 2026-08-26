@@ -7,6 +7,7 @@ import { apiPost } from "@/lib/api";
 import { storeTokens } from "@/lib/auth";
 import { parseApiError, type FieldErrors } from "@/lib/errors";
 import { FormField, FormMessage, buttonClass } from "@/components/form";
+import { AuthShell } from "@/components/auth-shell";
 
 type RegisterResponse = {
   user: { id: number; username: string; email: string };
@@ -51,8 +52,9 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-6 py-16">
-      <h1 className="mb-6 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Регистрация</h1>
+    <AuthShell>
+      <h1 className="mb-2 text-3xl text-charcoal">Регистрация.</h1>
+      <p className="mb-7 text-sm text-stone">Создайте аккаунт JanSpace за минуту.</p>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <FormField
           label="Логин"
@@ -94,12 +96,12 @@ export default function RegisterPage() {
           {pending ? "Регистрируем…" : "Зарегистрироваться"}
         </button>
       </form>
-      <p className="mt-6 text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="mt-5 text-center text-xs text-stone">
         Уже есть аккаунт?{" "}
-        <Link href="/login" className="font-medium text-zinc-900 hover:underline dark:text-zinc-50">
+        <Link href="/login" className="font-medium text-charcoal underline">
           Войти
         </Link>
       </p>
-    </div>
+    </AuthShell>
   );
 }

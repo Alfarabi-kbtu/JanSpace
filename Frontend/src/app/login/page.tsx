@@ -7,6 +7,7 @@ import { apiPost } from "@/lib/api";
 import { storeTokens } from "@/lib/auth";
 import { parseApiError, type FieldErrors } from "@/lib/errors";
 import { FormField, FormMessage, buttonClass } from "@/components/form";
+import { AuthShell } from "@/components/auth-shell";
 
 type TokenResponse = { access: string; refresh: string };
 
@@ -40,8 +41,9 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-6 py-16">
-      <h1 className="mb-6 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Вход</h1>
+    <AuthShell>
+      <h1 className="mb-2 text-3xl text-charcoal">С возвращением.</h1>
+      <p className="mb-7 text-sm text-stone">Войдите в свой аккаунт JanSpace.</p>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <FormField
           label="Логин"
@@ -60,22 +62,20 @@ export default function LoginPage() {
           errors={fieldErrors.password}
           autoComplete="current-password"
         />
+        <Link href="/forgot-password" className="-mt-2 text-xs text-stone hover:text-charcoal">
+          Забыли пароль?
+        </Link>
         <FormMessage message={message} />
         <button type="submit" disabled={pending} className={buttonClass}>
           {pending ? "Входим…" : "Войти"}
         </button>
       </form>
-      <div className="mt-6 flex flex-col gap-2 text-sm text-zinc-600 dark:text-zinc-400">
-        <Link href="/forgot-password" className="hover:text-zinc-900 dark:hover:text-zinc-50">
-          Забыли пароль?
+      <p className="mt-5 text-center text-xs text-stone">
+        Нет аккаунта?{" "}
+        <Link href="/register" className="font-medium text-charcoal underline">
+          Зарегистрироваться
         </Link>
-        <p>
-          Нет аккаунта?{" "}
-          <Link href="/register" className="font-medium text-zinc-900 hover:underline dark:text-zinc-50">
-            Зарегистрироваться
-          </Link>
-        </p>
-      </div>
-    </div>
+      </p>
+    </AuthShell>
   );
 }

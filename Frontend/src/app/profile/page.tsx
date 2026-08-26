@@ -6,6 +6,7 @@ import { apiGet, apiPatch, ApiError } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
 import { parseApiError, type FieldErrors } from "@/lib/errors";
 import { FormField, FormMessage, buttonClass } from "@/components/form";
+import { AccountLayout } from "@/components/account-layout";
 import { ChangePasswordForm } from "./change-password-form";
 
 type Profile = {
@@ -81,29 +82,31 @@ export default function ProfilePage() {
   }
 
   if (loading || username === null) {
-    return null;
+    return <AccountLayout>{null}</AccountLayout>;
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-10 px-6 py-16">
-      <div>
-        <h1 className="mb-6 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Профиль</h1>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Логин</span>
-            {/* username сменить нельзя — read-only на бэкенде (см. Frontend/CLAUDE.md) */}
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">{username}</p>
-          </div>
-          <FormField label="Email" name="email" type="email" value={email} onChange={setEmail} errors={fieldErrors.email} autoComplete="email" />
-          <FormField label="Имя" name="first_name" value={firstName} onChange={setFirstName} errors={fieldErrors.first_name} required={false} />
-          <FormField label="Фамилия" name="last_name" value={lastName} onChange={setLastName} errors={fieldErrors.last_name} required={false} />
-          <FormMessage message={message} tone={success ? "success" : "error"} />
-          <button type="submit" disabled={pending} className={buttonClass}>
-            {pending ? "Сохраняем…" : "Сохранить"}
-          </button>
-        </form>
+    <AccountLayout>
+      <div className="flex max-w-sm flex-col gap-10">
+        <div>
+          <h1 className="mb-6 text-3xl text-charcoal">Профиль</h1>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold uppercase tracking-widest text-stone">Логин</span>
+              {/* username сменить нельзя — read-only на бэкенде (см. Frontend/CLAUDE.md) */}
+              <p className="text-sm text-charcoal">{username}</p>
+            </div>
+            <FormField label="Email" name="email" type="email" value={email} onChange={setEmail} errors={fieldErrors.email} autoComplete="email" />
+            <FormField label="Имя" name="first_name" value={firstName} onChange={setFirstName} errors={fieldErrors.first_name} required={false} />
+            <FormField label="Фамилия" name="last_name" value={lastName} onChange={setLastName} errors={fieldErrors.last_name} required={false} />
+            <FormMessage message={message} tone={success ? "success" : "error"} />
+            <button type="submit" disabled={pending} className={buttonClass}>
+              {pending ? "Сохраняем…" : "Сохранить"}
+            </button>
+          </form>
+        </div>
+        <ChangePasswordForm />
       </div>
-      <ChangePasswordForm />
-    </div>
+    </AccountLayout>
   );
 }

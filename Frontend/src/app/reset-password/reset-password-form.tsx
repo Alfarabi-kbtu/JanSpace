@@ -80,8 +80,8 @@ export function ResetPasswordForm({ uid, token }: { uid: string; token: string }
       <button type="submit" disabled={pending} className={buttonClass}>
         {pending ? "Сохраняем…" : "Сохранить новый пароль"}
       </button>
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
-        <Link href="/forgot-password" className="font-medium text-zinc-900 hover:underline dark:text-zinc-50">
+      <p className="text-sm text-stone">
+        <Link href="/forgot-password" className="font-medium text-charcoal hover:underline">
           Запросить новую ссылку
         </Link>
       </p>

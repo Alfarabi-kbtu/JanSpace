@@ -43,7 +43,7 @@ export function ChangePasswordForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Смена пароля</h2>
+      <h2 className="text-lg font-semibold text-charcoal">Смена пароля</h2>
       <FormField
         label="Текущий пароль"
         name="old_password"

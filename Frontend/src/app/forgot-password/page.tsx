@@ -35,10 +35,8 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-6 py-16">
-      <h1 className="mb-2 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-        Восстановление пароля
-      </h1>
-      <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">
+      <h1 className="mb-2 text-3xl text-charcoal">Восстановление пароля</h1>
+      <p className="mb-7 text-sm text-stone">
         Укажите email, привязанный к аккаунту — если он зарегистрирован, на него придёт ссылка для сброса пароля.
       </p>
 
@@ -65,8 +63,8 @@ export default function ForgotPasswordPage() {
         </form>
       )}
 
-      <p className="mt-6 text-sm text-zinc-600 dark:text-zinc-400">
-        <Link href="/login" className="font-medium text-zinc-900 hover:underline dark:text-zinc-50">
+      <p className="mt-6 text-sm text-stone">
+        <Link href="/login" className="font-medium text-charcoal hover:underline">
           Вернуться ко входу
         </Link>
       </p>

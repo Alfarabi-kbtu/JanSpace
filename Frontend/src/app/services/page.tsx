@@ -1,15 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { apiPublicGet } from "@/lib/api";
 import { parseApiError } from "@/lib/errors";
 import type { Category, Paginated, Service } from "@/lib/types";
 import { CatalogGrid, type CatalogItem } from "@/components/catalog-grid";
 
 export default function ServicesPage() {
+  // useSearchParams требует Suspense-границу (иначе Next не может
+  // выполнить статический пререндер страницы) — сама логика в ServicesView
+  return (
+    <Suspense>
+      <ServicesView />
+    </Suspense>
+  );
+}
+
+function ServicesView() {
+  // ?category=<id> — переход с плиток категорий на главной (реально
+  // фильтрует список, а не просто ссылка на страницу целиком)
+  const searchParams = useSearchParams();
   const [services, setServices] = useState<Paginated<Service> | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState(() => searchParams.get("category") ?? "");
   const [availableOnly, setAvailableOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -65,8 +79,8 @@ export default function ServicesPage() {
     })) ?? [];
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-6 py-16">
-      <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Услуги</h1>
+    <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 py-12 sm:px-6">
+      <h1 className="text-3xl text-charcoal">Услуги</h1>
       <CatalogGrid
         items={items}
         loading={loading}

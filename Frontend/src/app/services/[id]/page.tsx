@@ -4,13 +4,15 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ApiError, apiPublicGet } from "@/lib/api";
-import type { Service } from "@/lib/types";
+import type { Paginated, Service } from "@/lib/types";
 import { DetailView } from "@/components/detail-view";
 import { CartButton } from "@/components/cart-button";
+import type { CatalogItem } from "@/components/catalog-grid";
 
 export default function ServiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [service, setService] = useState<Service | null>(null);
+  const [related, setRelated] = useState<CatalogItem[]>([]);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,9 +23,33 @@ export default function ServiceDetailPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setNotFound(false);
     setError(null);
+    setRelated([]);
 
     apiPublicGet<Service>(`/api/services/${id}/`)
-      .then(setService)
+      .then((data) => {
+        setService(data);
+        if (data.service_category) {
+          apiPublicGet<Paginated<Service>>(`/api/services/?service_category=${data.service_category.id}`)
+            .then((page) =>
+              setRelated(
+                page.results
+                  .filter((s) => s.id !== data.id)
+                  .slice(0, 4)
+                  .map((s) => ({
+                    id: s.id,
+                    name: s.service_name,
+                    price: s.service_price,
+                    category: s.service_category,
+                    is_available: s.is_available,
+                    image: s.image,
+                  })),
+              ),
+            )
+            .catch(() => {
+              // Похожие услуги необязательны для страницы услуги
+            });
+        }
+      })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 404) {
           setNotFound(true);
@@ -36,8 +62,8 @@ export default function ServiceDetailPage() {
   if (notFound) {
     return (
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-start gap-4 px-6 py-16">
-        <p className="text-zinc-600 dark:text-zinc-400">Услуга не найдена.</p>
-        <Link href="/services" className="font-medium text-zinc-900 hover:underline dark:text-zinc-50">
+        <p className="text-stone">Услуга не найдена.</p>
+        <Link href="/services" className="font-medium text-charcoal hover:underline">
           ← Все услуги
         </Link>
       </div>
@@ -47,7 +73,7 @@ export default function ServiceDetailPage() {
   if (error) {
     return (
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-start gap-4 px-6 py-16">
-        <p className="text-red-600 dark:text-red-400">{error}</p>
+        <p className="text-cherry">{error}</p>
       </div>
     );
   }
@@ -76,6 +102,14 @@ export default function ServiceDetailPage() {
           disabled={!service.is_available}
         />
       }
+      crossSell={{
+        message: "Нужен товар к этой услуге?",
+        ctaLabel: "Смотреть товары",
+        href: "/products",
+      }}
+      related={related}
+      relatedHrefBase="/services"
+      relatedCategoryLabel={(category) => category.service_category ?? ""}
     />
   );
 }

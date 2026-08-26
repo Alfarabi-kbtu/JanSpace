@@ -4,13 +4,15 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ApiError, apiPublicGet } from "@/lib/api";
-import type { Product } from "@/lib/types";
+import type { Paginated, Product } from "@/lib/types";
 import { DetailView } from "@/components/detail-view";
 import { CartButton } from "@/components/cart-button";
+import type { CatalogItem } from "@/components/catalog-grid";
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [product, setProduct] = useState<Product | null>(null);
+  const [related, setRelated] = useState<CatalogItem[]>([]);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,9 +23,33 @@ export default function ProductDetailPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setNotFound(false);
     setError(null);
+    setRelated([]);
 
     apiPublicGet<Product>(`/api/products/${id}/`)
-      .then(setProduct)
+      .then((data) => {
+        setProduct(data);
+        if (data.product_category) {
+          apiPublicGet<Paginated<Product>>(`/api/products/?product_category=${data.product_category.id}`)
+            .then((page) =>
+              setRelated(
+                page.results
+                  .filter((p) => p.id !== data.id)
+                  .slice(0, 4)
+                  .map((p) => ({
+                    id: p.id,
+                    name: p.product_name,
+                    price: p.price,
+                    category: p.product_category,
+                    is_available: p.is_available,
+                    image: p.image,
+                  })),
+              ),
+            )
+            .catch(() => {
+              // Похожие товары необязательны для страницы товара
+            });
+        }
+      })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 404) {
           setNotFound(true);
@@ -36,8 +62,8 @@ export default function ProductDetailPage() {
   if (notFound) {
     return (
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-start gap-4 px-6 py-16">
-        <p className="text-zinc-600 dark:text-zinc-400">Товар не найден.</p>
-        <Link href="/products" className="font-medium text-zinc-900 hover:underline dark:text-zinc-50">
+        <p className="text-stone">Товар не найден.</p>
+        <Link href="/products" className="font-medium text-charcoal hover:underline">
           ← Все товары
         </Link>
       </div>
@@ -47,7 +73,7 @@ export default function ProductDetailPage() {
   if (error) {
     return (
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-start gap-4 px-6 py-16">
-        <p className="text-red-600 dark:text-red-400">{error}</p>
+        <p className="text-cherry">{error}</p>
       </div>
     );
   }
@@ -76,6 +102,14 @@ export default function ProductDetailPage() {
           disabled={!product.is_available}
         />
       }
+      crossSell={{
+        message: "Нужна услуга к этому товару?",
+        ctaLabel: "Смотреть услуги",
+        href: "/services",
+      }}
+      related={related}
+      relatedHrefBase="/products"
+      relatedCategoryLabel={(category) => category.product_category ?? ""}
     />
   );
 }

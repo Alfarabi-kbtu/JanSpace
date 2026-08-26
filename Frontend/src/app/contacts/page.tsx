@@ -11,6 +11,23 @@ const LINK_LABELS: { key: keyof Omit<Messenger, "id">; label: string }[] = [
   { key: "tiktok", label: "TikTok" },
 ];
 
+// На мобильных пытаемся открыть нативное приложение Instagram, а если оно
+// не установлено (страница остаётся видимой дольше 2с), уводим на веб-версию
+function openInstagramApp(event: React.MouseEvent<HTMLAnchorElement>, webUrl: string) {
+  const username = webUrl.match(/instagram\.com\/([^/?#]+)/i)?.[1];
+  if (!username) return;
+
+  event.preventDefault();
+  const start = Date.now();
+  window.location.href = `instagram://user?username=${username}`;
+
+  setTimeout(() => {
+    if (Date.now() - start < 2000) {
+      window.location.href = webUrl;
+    }
+  }, 1500);
+}
+
 export default function ContactsPage() {
   const [messenger, setMessenger] = useState<Messenger | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,19 +49,13 @@ export default function ContactsPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-6 py-16">
-      <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Контакты</h1>
+      <h1 className="text-3xl text-charcoal">Контакты</h1>
 
-      {error && (
-        <p className="rounded-lg bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">
-          {error}
-        </p>
-      )}
+      {error && <p className="bg-cherry/10 px-3.5 py-2.5 text-sm text-cherry">{error}</p>}
 
-      {!error && loading && <p className="text-sm text-zinc-500 dark:text-zinc-400">Загрузка…</p>}
+      {!error && loading && <p className="text-sm text-stone">Загрузка…</p>}
 
-      {!error && !loading && links.length === 0 && (
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">Контакты пока не добавлены.</p>
-      )}
+      {!error && !loading && links.length === 0 && <p className="text-sm text-stone">Контакты пока не добавлены.</p>}
 
       {!error && !loading && links.length > 0 && (
         <div className="flex flex-col gap-3">
@@ -54,10 +65,11 @@ export default function ContactsPage() {
               href={link.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-between rounded-xl border border-black/[.08] px-5 py-4 text-zinc-900 transition-colors hover:bg-black/[.03] dark:border-white/[.145] dark:text-zinc-50 dark:hover:bg-white/[.06]"
+              onClick={link.key === "instagram" ? (e) => openInstagramApp(e, link.url) : undefined}
+              className="flex items-center justify-between border border-edge px-5 py-4 text-charcoal transition-colors hover:bg-blush-soft/40"
             >
               <span className="font-medium">{link.label}</span>
-              <span className="text-zinc-400 dark:text-zinc-600">→</span>
+              <span className="text-stone">→</span>
             </a>
           ))}
         </div>

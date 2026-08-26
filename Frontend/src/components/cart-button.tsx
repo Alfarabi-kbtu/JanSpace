@@ -3,10 +3,10 @@
 import { addToCart, removeFromCart, useCart, type CartItem } from "@/lib/cart";
 
 const addClass =
-  "w-fit rounded-lg bg-zinc-900 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-300";
+  "w-full sm:w-auto bg-charcoal px-6 py-3 text-sm font-semibold text-cream transition-colors hover:bg-swamp disabled:cursor-not-allowed disabled:opacity-50";
 
 const removeClass =
-  "w-fit rounded-lg border border-black/[.08] px-6 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-black/[.03] dark:border-white/[.145] dark:text-zinc-300 dark:hover:bg-white/[.06]";
+  "w-full sm:w-auto border border-charcoal px-6 py-3 text-sm font-semibold text-charcoal transition-colors hover:bg-charcoal hover:text-cream";
 
 export function CartButton({
   type,

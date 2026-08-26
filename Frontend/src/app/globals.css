@@ -1,26 +1,55 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
+/* Design tokens ported from Design website UI_UX/src/index.css — the
+   approved visual language (fonts + palette). No dark-mode palette exists
+   in that reference, so this is deliberately a single light theme. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --font-sans: var(--font-inter);
+  /* DM Serif Display has no Cyrillic glyphs, so Russian headings fall
+     through to Georgia — the closest serif match, keeps the display
+     character on Cyrillic pages instead of silently going sans-serif */
+  --font-serif: var(--font-dm-serif), Georgia, "Times New Roman", serif;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-cream: #faf9f7;
+  --color-charcoal: #2c2a28;
+  --color-stone: #8a8480;
+  --color-edge: #e5e0d8;
+
+  --color-blush: #f3b6c6;
+  --color-blush-soft: #f9dde5;
+  --color-coral: #d96b70;
+  --color-cherry: #b94e59;
+
+  --color-swamp: #65745a;
+  --color-swamp-deep: #4e5a46;
+  --color-olive: #aeb89b;
+
+  --color-sky: #b9dce8;
+  --color-mist: #e4f2f5;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-cream);
+  color: var(--color-charcoal);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-serif);
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-edge);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-olive);
 }
