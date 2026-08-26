@@ -3,11 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CART_CHANGE_EVENT,
   addToCart,
+  cartItemTotal,
+  cartTotal,
   clearCart,
   getCart,
   isInCart,
   removeFromCart,
+  setCartItemServices,
   useCart,
+  type AttachedService,
   type CartItem,
 } from "./cart";
 
@@ -77,6 +81,54 @@ describe("clearCart", () => {
     addToCart(service);
     clearCart();
     expect(getCart()).toEqual([]);
+  });
+});
+
+const engraving: AttachedService = { id: 6, name: "Гравировка", price: "4990.00", details: "" };
+const giftWrap: AttachedService = { id: 9, name: "Подарочная упаковка", price: "1500.00", details: "" };
+
+describe("setCartItemServices", () => {
+  it("attaches services only to the matching product, leaving other cart items untouched", () => {
+    const otherProduct: CartItem = { ...product, id: 2, name: "Owala Limited" };
+    addToCart(product);
+    addToCart(otherProduct);
+
+    setCartItemServices(product.id, [engraving]);
+
+    const cart = getCart();
+    expect(cart.find((i) => i.id === product.id)?.services).toEqual([engraving]);
+    expect(cart.find((i) => i.id === otherProduct.id)?.services ?? []).toEqual([]);
+  });
+
+  it("replaces the whole services array (used to toggle a checkbox off)", () => {
+    addToCart(product);
+    setCartItemServices(product.id, [engraving, giftWrap]);
+    setCartItemServices(product.id, [giftWrap]);
+
+    expect(getCart()[0].services).toEqual([giftWrap]);
+  });
+
+  it("is a no-op for a standalone service cart item (services only attach to products)", () => {
+    addToCart(service);
+    setCartItemServices(service.id, [engraving]);
+
+    expect(getCart()[0].services).toBeUndefined();
+  });
+});
+
+describe("cartItemTotal / cartTotal", () => {
+  it("sums the item price alone when it has no attached services", () => {
+    expect(cartItemTotal(product)).toBe(450000);
+  });
+
+  it("adds attached service prices on top of the item price", () => {
+    const withServices: CartItem = { ...product, services: [engraving, giftWrap] };
+    expect(cartItemTotal(withServices)).toBe(450000 + 4990 + 1500);
+  });
+
+  it("cartTotal sums cartItemTotal across every cart item, including attached services", () => {
+    const withEngraving: CartItem = { ...product, services: [engraving] };
+    expect(cartTotal([withEngraving, service])).toBe(450000 + 4990 + 15000);
   });
 });
 

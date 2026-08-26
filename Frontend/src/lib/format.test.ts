@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { formatDate, formatPrice, orderStatusColorClass, orderStatusLabel, orderTotal } from "./format";
-import type { Order, Product, Service } from "./types";
+import { DELIVERY_FEE, formatDate, formatPrice, orderStatusColorClass, orderStatusLabel, orderTotal } from "./format";
+import type { Order, OrderServiceItem, Product, Service } from "./types";
 
 describe("formatPrice", () => {
   it("appends the tenge sign, matching the runtime's own ru-RU formatting", () => {
@@ -67,6 +67,20 @@ describe("orderTotal", () => {
     user: 1,
     product: products,
     services,
+    service_items: [],
+    fulfillment_type: "pickup",
+    delivery_address: "",
+    preorder_requested: false,
+    preorder_date: null,
+  });
+
+  const serviceItem = (product: number, price_snapshot: string): OrderServiceItem => ({
+    id: 1,
+    product,
+    product_name: "Test product",
+    service_name: "Гравировка",
+    price_snapshot,
+    details: "",
   });
 
   it("sums product prices and service prices together", () => {
@@ -75,5 +89,22 @@ describe("orderTotal", () => {
 
   it("returns 0 for an order with no items", () => {
     expect(orderTotal(order([], []))).toBe(0);
+  });
+
+  it("adds the delivery fee only when fulfillment_type is delivery", () => {
+    const pickupOrder = order([product("35990.00")], []);
+    const deliveryOrder = { ...pickupOrder, fulfillment_type: "delivery" as const };
+
+    expect(orderTotal(pickupOrder)).toBe(35990);
+    expect(orderTotal(deliveryOrder)).toBe(35990 + DELIVERY_FEE);
+  });
+
+  it("adds attached service prices (price_snapshot), not the item count", () => {
+    const base = order([product("35990.00"), product("25990.00")], []);
+    const withOneEngraving = { ...base, service_items: [serviceItem(1, "4990.00")] };
+    const withTwoEngravings = { ...base, service_items: [serviceItem(1, "4990.00"), serviceItem(2, "4990.00")] };
+
+    expect(orderTotal(withOneEngraving)).toBe(35990 + 25990 + 4990);
+    expect(orderTotal(withTwoEngravings)).toBe(35990 + 25990 + 4990 + 4990);
   });
 });

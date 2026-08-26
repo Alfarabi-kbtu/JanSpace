@@ -1,14 +1,16 @@
+from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from django.contrib.auth.models import User
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from products.models import Product
 from services.models import Services
-from .models import Order
+from .models import Order, OrderServiceItem
 
 
 class OrderApiTests(APITestCase):
@@ -20,7 +22,9 @@ class OrderApiTests(APITestCase):
         self.other_user = User.objects.create_user(username="petr", password="Petr-Pass!1")
 
         self.product = Product.objects.create(product_name="Телефон", price=Decimal("100.00"))
+        self.other_product = Product.objects.create(product_name="Наушники", price=Decimal("200.00"))
         self.service = Services.objects.create(service_name="Ремонт", service_price=Decimal("50.00"))
+        self.engraving = Services.objects.create(service_name="Гравировка", service_price=Decimal("4990.00"))
 
         self.list_url = reverse("order-list")
 
@@ -241,6 +245,262 @@ class OrderApiTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_channel_layer.group_send.assert_not_called()
+
+    def test_create_order_with_delivery_requires_address(self):
+        # Arrange
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.post(
+            self.list_url,
+            {"product_ids": [self.product.id], "fulfillment_type": Order.FULFILLMENT_DELIVERY},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("delivery_address", response.data)
+
+    def test_create_order_with_delivery_and_address_succeeds(self):
+        # Arrange
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.post(
+            self.list_url,
+            {
+                "product_ids": [self.product.id],
+                "fulfillment_type": Order.FULFILLMENT_DELIVERY,
+                "delivery_address": "г. Алматы, ул. Абая 1",
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order = Order.objects.get(order_id=response.data["order_id"])
+        self.assertEqual(order.delivery_address, "г. Алматы, ул. Абая 1")
+
+    def test_create_order_with_preorder_requires_future_date(self):
+        # Arrange
+        self.client.force_authenticate(user=self.user)
+        past_date = (timezone.localdate() - timedelta(days=1)).isoformat()
+
+        # Act
+        response = self.client.post(
+            self.list_url,
+            {
+                "product_ids": [self.product.id],
+                "preorder_requested": True,
+                "preorder_date": past_date,
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("preorder_date", response.data)
+
+    def test_create_order_with_preorder_and_future_date_succeeds(self):
+        # Arrange
+        self.client.force_authenticate(user=self.user)
+        future_date = (timezone.localdate() + timedelta(days=7)).isoformat()
+
+        # Act
+        response = self.client.post(
+            self.list_url,
+            {
+                "product_ids": [self.product.id],
+                "preorder_requested": True,
+                "preorder_date": future_date,
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order = Order.objects.get(order_id=response.data["order_id"])
+        self.assertEqual(order.preorder_date.isoformat(), future_date)
+
+    def test_create_order_with_delivery_and_attached_service_together_succeeds(self):
+        # Способ получения и привязанные к товару доп.услуги независимы —
+        # можно выбрать доставку и одновременно гравировку в одном заказе
+        # Arrange
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.post(
+            self.list_url,
+            {
+                "product_ids": [self.product.id],
+                "fulfillment_type": Order.FULFILLMENT_DELIVERY,
+                "delivery_address": "г. Алматы, ул. Абая 1",
+                "attached_services": [
+                    {"product_id": self.product.id, "service_id": self.engraving.id, "details": "Имя на кольце"},
+                ],
+            },
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order = Order.objects.get(order_id=response.data["order_id"])
+        self.assertEqual(order.delivery_address, "г. Алматы, ул. Абая 1")
+        self.assertEqual(order.service_items.count(), 1)
+        self.assertEqual(order.service_items.first().details, "Имя на кольце")
+
+    # ---- Доп.услуги, привязанные к товару (OrderServiceItem) ----
+
+    def test_attached_service_price_is_included_in_the_serialized_order(self):
+        # Цена привязанной услуги должна быть видна в ответе API — именно
+        # это раньше не работало для гравировки, выбранной через checkbox
+        # Arrange
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.post(
+            self.list_url,
+            {
+                "product_ids": [self.product.id],
+                "attached_services": [{"product_id": self.product.id, "service_id": self.engraving.id}],
+            },
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        [item] = response.data["service_items"]
+        self.assertEqual(item["product"], self.product.id)
+        self.assertEqual(item["service_name"], "Гравировка")
+        self.assertEqual(str(item["price_snapshot"]), "4990.00")
+
+    def test_attached_service_price_is_snapshotted_from_catalog_not_from_client(self):
+        # Клиент не должен иметь возможности подменить цену услуги — сервер
+        # сам берёт её из Services.service_price, тело запроса цену не содержит
+        # Arrange
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.post(
+            self.list_url,
+            {
+                "product_ids": [self.product.id],
+                "attached_services": [{"product_id": self.product.id, "service_id": self.engraving.id}],
+            },
+            format="json",
+        )
+        self.engraving.service_price = Decimal("9999.00")
+        self.engraving.save()
+
+        # Assert — цена в уже созданном заказе не меняется вслед за каталогом
+        order = Order.objects.get(order_id=response.data["order_id"])
+        self.assertEqual(order.service_items.first().price_snapshot, Decimal("4990.00"))
+
+    def test_attaching_service_to_product_not_in_order_returns_400(self):
+        # Нельзя привязать услугу к товару, которого нет в этом заказе —
+        # иначе неоднозначно, к чему она вообще относится
+        # Arrange
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.post(
+            self.list_url,
+            {
+                "product_ids": [self.product.id],
+                "attached_services": [{"product_id": self.other_product.id, "service_id": self.engraving.id}],
+            },
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("attached_services", response.data)
+
+    def test_attaching_same_service_to_two_different_products_counts_twice(self):
+        # Если гравировка выбрана для ДВУХ товаров в одном заказе — это две
+        # отдельные позиции, каждая ценой в 4990, а не одна на весь заказ
+        # Arrange
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.post(
+            self.list_url,
+            {
+                "product_ids": [self.product.id, self.other_product.id],
+                "attached_services": [
+                    {"product_id": self.product.id, "service_id": self.engraving.id},
+                    {"product_id": self.other_product.id, "service_id": self.engraving.id},
+                ],
+            },
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order = Order.objects.get(order_id=response.data["order_id"])
+        self.assertEqual(order.service_items.count(), 2)
+        products_with_engraving = set(order.service_items.values_list("product_id", flat=True))
+        self.assertEqual(products_with_engraving, {self.product.id, self.other_product.id})
+
+    def test_attaching_service_to_only_one_of_two_products(self):
+        # Гравировка второго товара не должна затрагивать первый
+        # Arrange
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.post(
+            self.list_url,
+            {
+                "product_ids": [self.product.id, self.other_product.id],
+                "attached_services": [
+                    {"product_id": self.other_product.id, "service_id": self.engraving.id},
+                ],
+            },
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order = Order.objects.get(order_id=response.data["order_id"])
+        [item] = order.service_items.all()
+        self.assertEqual(item.product_id, self.other_product.id)
+
+    def test_updating_attached_services_via_patch_replaces_previous_set(self):
+        # Arrange
+        order = Order.objects.create(user=self.user)
+        order.product.add(self.product)
+        OrderServiceItem.objects.create(
+            order=order, product=self.product, service=self.engraving,
+            service_name="Гравировка", price_snapshot=Decimal("4990.00"),
+        )
+        self.client.force_authenticate(user=self.user)
+
+        # Act — заменяем набор привязанных услуг пустым списком
+        response = self.client.patch(
+            self._detail_url(order), {"attached_services": []}, format="json"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(order.service_items.count(), 0)
+
+    def test_switching_fulfillment_type_to_pickup_via_patch_clears_address(self):
+        # Если клиент сначала выбрал доставку, а потом через PATCH переключился
+        # на самовывоз — старый адрес не должен оставаться в БД
+        # Arrange
+        order = Order.objects.create(
+            user=self.user,
+            fulfillment_type=Order.FULFILLMENT_DELIVERY,
+            delivery_address="г. Алматы, ул. Абая 1",
+        )
+        order.product.add(self.product)
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.patch(
+            self._detail_url(order), {"fulfillment_type": Order.FULFILLMENT_PICKUP}
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        order.refresh_from_db()
+        self.assertEqual(order.delivery_address, "")
 
     @patch("orders.signals.get_channel_layer")
     def test_creating_order_does_not_notify_websocket(self, mock_get_channel_layer):

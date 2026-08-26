@@ -6,12 +6,31 @@ import { useSyncExternalStore } from "react";
 // Order.product/Order.services — просто множество id, без поля quantity).
 // Поэтому корзина здесь — это тоже множество: товар либо добавлен, либо нет,
 // "количество" как понятие не существует
+//
+// Доп.услуга (гравировка, подарочная упаковка...), привязанная к конкретному
+// товару в корзине — соответствует backend-модели orders.OrderServiceItem.
+// id/name/price — снимок каталожной услуги (Service.id/service_name/
+// service_price) на момент выбора, чтобы корзина не дёргала API на каждый
+// рендер; на бэкенде при создании заказа цена всё равно берётся заново из
+// каталога по id, а не из этого снимка (клиент не может подменить цену)
+export type AttachedService = {
+  id: number;
+  name: string;
+  price: string;
+  details: string;
+};
+
 export type CartItem = {
   type: "product" | "service";
   id: number;
   name: string;
   price: string;
   image: string | null;
+  // Доп.услуги, привязанные к ЭТОМУ товару — имеет смысл только для
+  // type === "product". У standalone-услуг (type === "service", добавленных
+  // из каталога напрямую как самостоятельная позиция) всегда пусто: это
+  // другой сценарий, услуга сама по себе, а не привязанная к товару
+  services?: AttachedService[];
 };
 
 const CART_KEY = "janspace_cart";
@@ -69,6 +88,25 @@ export function removeFromCart(type: CartItem["type"], id: number) {
 
 export function clearCart() {
   writeCart([]);
+}
+
+// Полностью заменяет набор доп.услуг, привязанных к товару с данным id
+// (id — товарный, не услуги; сам товар всегда type === "product") —
+// используется для чекбоксов "нужна гравировка" и т.п. в корзине
+export function setCartItemServices(id: number, services: AttachedService[]) {
+  const cart = readCart();
+  writeCart(cart.map((item) => (item.type === "product" && item.id === id ? { ...item, services } : item)));
+}
+
+// Стоимость одной позиции корзины вместе с привязанными к ней доп.услугами —
+// единая точка расчёта, чтобы сумма в корзине и payload заказа не расходились
+export function cartItemTotal(item: CartItem): number {
+  const servicesTotal = (item.services ?? []).reduce((sum, service) => sum + Number(service.price), 0);
+  return Number(item.price) + servicesTotal;
+}
+
+export function cartTotal(cart: CartItem[]): number {
+  return cart.reduce((sum, item) => sum + cartItemTotal(item), 0);
 }
 
 function subscribe(callback: () => void) {
