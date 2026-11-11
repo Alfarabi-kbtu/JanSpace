@@ -51,8 +51,8 @@ if SENTRY_DSN:
 # и разбиваем на список — так же можно будет добавить домен при деплое, не трогая код
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',')
 
-# ==== Настройки для работы за прокси Railway (или любым другим PaaS) ====
-# Railway сам терминирует HTTPS на своей границе и проксирует запросы к
+# ==== Настройки для работы за прокси Render (или любым другим PaaS) ====
+# Render сам терминирует HTTPS на своей границе и проксирует запросы к
 # контейнеру обычным HTTP, добавляя заголовок X-Forwarded-Proto. Без этой
 # строки request.is_secure() внутри Django всегда возвращал бы False, даже
 # когда пользователь зашёл по https — из-за этого SECURE_SSL_REDIRECT ниже
@@ -61,11 +61,11 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # CSRF_TRUSTED_ORIGINS — начиная с Django 4+ обязателен для POST-запросов
 # (например, через админку) при работе за прокси. Берём из .env, чтобы не
-# хардкодить домен — на Railway это будет https://<project>.up.railway.app
+# хардкодить домен — на Render это будет https://<service>.onrender.com
 # или ваш кастомный домен
 CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='').split(',') if config('CSRF_TRUSTED_ORIGINS', default='') else []
 
-# Эти настройки безопасны только когда есть настоящий HTTPS (прод за Railway).
+# Эти настройки безопасны только когда есть настоящий HTTPS (прод за Render).
 # Гейтим через `not DEBUG`, чтобы локальный docker-compose (DEBUG=True, без
 # HTTPS) не сломался — иначе SECURE_SSL_REDIRECT перенаправлял бы локальные
 # http-запросы в никуда
@@ -123,7 +123,7 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     # WhiteNoise — отдаёт статику (админка, DRF browsable API) прямо из
-    # процесса Daphne. На Railway перед контейнером нет nginx, который бы
+    # процесса Daphne. На Render перед контейнером нет nginx, который бы
     # мог сделать это вместо нас, поэтому раздаём сами. ОБЯЗАТЕЛЬНО сразу
     # после SecurityMiddleware — так требует сам whitenoise
     'whitenoise.middleware.WhiteNoiseMiddleware',
@@ -226,7 +226,7 @@ SIMPLE_JWT = {
 
 # ==== CORS ====
 # CORS_ALLOWED_ORIGINS читаем из .env как строку через запятую — по
-# умолчанию локальный фронтенд для разработки. На Railway задайте реальный
+# умолчанию локальный фронтенд для разработки. На Render задайте реальный
 # домен фронтенда через переменную окружения, ничего не трогая в коде
 CORS_ALLOWED_ORIGINS = config(
     'CORS_ALLOWED_ORIGINS',
@@ -246,7 +246,7 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 # Ссылка на фронтенд — куда попадёт пользователь по клику в письме,
 # чтобы там ввести новый пароль. По умолчанию — локальный фронтенд;
-# на Railway задайте реальный адрес через .env
+# на Render задайте реальный адрес через .env
 FRONTEND_RESET_PASSWORD_URL = config(
     'FRONTEND_RESET_PASSWORD_URL',
     default='http://localhost:3000/reset-password',

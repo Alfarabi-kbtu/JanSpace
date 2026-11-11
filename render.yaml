@@ -1,0 +1,111 @@
+# Render Blueprint — деплоит Backend одним стеком: Postgres + Redis (Key Value) +
+# web-сервис на Daphne через Docker. Применяется через Render Dashboard →
+# New → Blueprint, указав этот репозиторий (render.yaml должен лежать в его
+# корне). Поля с `sync: false` ниже нужно будет вручную заполнить в Render
+# Dashboard после первого применения blueprint'а — см. Backend/CLAUDE.md,
+# раздел "Продакшен (Render)".
+
+databases:
+  - name: janspace-db
+    databaseName: janspace
+    user: janspace
+    region: oregon
+    # Внимание: free-план Postgres на Render автоматически удаляется через
+    # 30 дней. Для реального прода смените на платный план до истечения
+    # срока, иначе база (и все заказы/пользователи) будут потеряны
+    plan: free
+
+services:
+  - name: janspace-redis
+    type: keyvalue
+    region: oregon
+    plan: free
+    # Channel layer — потеря сообщений при вытеснении некритична (это не
+    # основное хранилище данных, только доставка WebSocket-событий)
+    maxmemoryPolicy: allkeys-lru
+
+  - name: janspace-backend
+    type: web
+    runtime: docker
+    region: oregon
+    plan: free
+    rootDir: Backend
+    dockerfilePath: Backend/Dockerfile
+    dockerContext: Backend
+    # Переопределяет CMD из Dockerfile (там "python manage.py runserver" —
+    # dev-сервер с автоперезагрузкой, для продакшена не годится).
+    # entrypoint.sh из Dockerfile всё равно выполняется первым (ждёт Postgres,
+    # делает migrate/collectstatic) — dockerCommand лишь подменяет то, что
+    # он в итоге запустит через exec "$@". $PORT назначает сам Render
+    dockerCommand: daphne -b 0.0.0.0 -p $PORT config.asgi:application
+    healthCheckPath: /health/
+    envVars:
+      # ---- База данных (из блока databases выше — подставляется Render'ом
+      # автоматически, вводить руками не нужно) ----
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: janspace-db
+          property: database
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: janspace-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: janspace-db
+          property: password
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: janspace-db
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: janspace-db
+          property: port
+
+      # ---- Redis (channel layer, из сервиса janspace-redis выше). Внутренние
+      # подключения между сервисами одного workspace в одном регионе у Render
+      # идут без TLS и без пароля — тем же, как в docker-compose, hosts=[(host,port)] ----
+      - key: REDIS_HOST
+        fromService:
+          name: janspace-redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          name: janspace-redis
+          property: port
+
+      # ---- Константы продакшена ----
+      - key: DEBUG
+        value: "false"
+      - key: SENTRY_ENVIRONMENT
+        value: production
+
+      # ---- Секреты и значения, специфичные для деплоя — Render создаст эти
+      # переменные пустыми, заполнить вручную в Dashboard → janspace-backend →
+      # Environment после первого деплоя (sync: false = значение не хранится
+      # в этом файле и не трогается при повторных применениях blueprint'а) ----
+      - key: SECRET_KEY
+        sync: false
+      - key: ALLOWED_HOSTS
+        sync: false   # домен сервиса (<name>.onrender.com) + кастомный домен, если есть
+      - key: CSRF_TRUSTED_ORIGINS
+        sync: false   # https://<name>.onrender.com
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false   # https://<домен фронтенда на Vercel>
+      - key: FRONTEND_RESET_PASSWORD_URL
+        sync: false   # https://<домен фронтенда на Vercel>/reset-password
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_STORAGE_BUCKET_NAME
+        sync: false
+      - key: AWS_S3_REGION_NAME
+        sync: false
+      - key: SENTRY_DSN
+        sync: false   # опционально — см. Backend/CLAUDE.md

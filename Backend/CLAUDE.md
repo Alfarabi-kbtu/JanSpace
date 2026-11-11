@@ -177,25 +177,41 @@ docker compose down -v
 `Dockerfile`.
 
 Это dev-сборка (см. "Известные особенности" ниже про DEBUG/ALLOWED_HOSTS).
-Для продакшена используется Railway, а не отдельный prod `docker-compose`
-с nginx — см. раздел "Продакшен (Railway)" ниже.
+Для продакшена используется Render, а не отдельный prod `docker-compose`
+с nginx — см. раздел "Продакшен (Render)" ниже.
 
-### Продакшен (Railway)
+### Продакшен (Render)
 
-Прод — Railway (PaaS), не голый docker-compose. Railway сам терминирует
-HTTPS и проксирует запросы к контейнеру — поэтому в отличие от типичного
-prod-докера здесь НЕТ nginx/certbot и НЕТ отдельного `docker-compose.prod.yml`.
-Postgres и Redis — managed-плагины Railway, а не свои контейнеры; их
-переменные подключения (`PGDATABASE`, `REDISHOST` и т.п.) смэплены в
-Railway-дэшборде на наши имена (`POSTGRES_DB`, `REDIS_HOST`...) через
-reference variables — в `settings.py` для этого ничего менять не пришлось.
+Прод — Render (PaaS), не голый docker-compose. Решение сменилось с Railway
+на Render — если где-то в старых заметках/коммитах встречается Railway,
+это устаревшее. Render сам терминирует HTTPS и проксирует запросы к
+контейнеру — поэтому в отличие от типичного prod-докера здесь НЕТ
+nginx/certbot и НЕТ отдельного `docker-compose.prod.yml`.
 
-`railway.toml` переопределяет команду запуска из Dockerfile — вместо
-`python manage.py runserver` (dev-сервер, не для продакшена) продакшен
-запускается через `daphne -b 0.0.0.0 -p $PORT config.asgi:application`
-($PORT назначает сам Railway). `entrypoint.sh` из Dockerfile всё равно
+Деплой описан как IaC в `render.yaml` (корень репозитория, не в `Backend/`,
+т.к. Render Blueprint читает его из корня подключённого репозитория) —
+применяется через Render Dashboard → New → Blueprint. Поднимает три
+сервиса разом:
+- `janspace-db` — managed Postgres;
+- `janspace-redis` — managed Key Value (Redis-совместимый) для channel layer;
+- `janspace-backend` — сам Django/Daphne, из `Backend/Dockerfile`.
+
+Переменные подключения к Postgres/Redis (`POSTGRES_*`, `REDIS_HOST`,
+`REDIS_PORT`) смэплены в `render.yaml` на эти managed-сервисы через
+`fromDatabase`/`fromService` — в `settings.py` для этого ничего менять не
+пришлось, он по-прежнему читает их как обычные переменные окружения.
+Секреты и домен-специфичные значения (`SECRET_KEY`, `AWS_*`, `EMAIL_*`,
+`ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `CORS_ALLOWED_ORIGINS`,
+`FRONTEND_RESET_PASSWORD_URL`) помечены в `render.yaml` как `sync: false` —
+значит, их нужно вручную ввести в Render Dashboard → `janspace-backend` →
+Environment после первого применения blueprint'а, в файле они не хранятся.
+
+`render.yaml`'s `dockerCommand` переопределяет команду запуска из Dockerfile —
+вместо `python manage.py runserver` (dev-сервер, не для продакшена)
+продакшен запускается через `daphne -b 0.0.0.0 -p $PORT config.asgi:application`
+($PORT назначает сам Render). `entrypoint.sh` из Dockerfile всё равно
 выполняется первым (ждёт Postgres, делает `migrate` и `collectstatic`) —
-`startCommand` лишь подменяет то, что `entrypoint.sh` в итоге запустит
+`dockerCommand` лишь подменяет то, что `entrypoint.sh` в итоге запустит
 через `exec "$@"`.
 
 `collectstatic` сознательно не запускается на этапе `docker build`: на
@@ -203,19 +219,24 @@ reference variables — в `settings.py` для этого ничего меня
 `settings.py` требует их сразу при импорте — поэтому `collectstatic`
 запускается в `entrypoint.sh` при СТАРТЕ контейнера, вместе с `migrate`.
 Раздаёт собранную статику `whitenoise` (`STATIC_ROOT`, `WhiteNoiseMiddleware`
-сразу после `SecurityMiddleware`) — на Railway перед контейнером нет
+сразу после `SecurityMiddleware`) — на Render перед контейнером нет
 nginx, который бы мог сделать это вместо Django.
 
 `config/urls.py` → `/health/` (`config/views.py::health_check`) — health-check
-для `railway.toml` (`healthcheckPath`), не трогает БД/Redis, чтобы их
+для `render.yaml` (`healthCheckPath`), не трогает БД/Redis, чтобы их
 временная недоступность не блокировала сам факт "контейнер поднялся".
 
 `SECURE_PROXY_SSL_HEADER` в `settings.py` обязателен при работе за
-прокси Railway — без него `request.is_secure()` всегда `False`, и
+прокси Render — без него `request.is_secure()` всегда `False`, и
 `SECURE_SSL_REDIRECT` ушёл бы в бесконечный редирект. Секьюрити-настройки
 (`SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `SECURE_HSTS_SECONDS`...)
 гейтятся через `if not DEBUG`, чтобы локальный docker-compose (DEBUG=True,
 без HTTPS) не сломался.
+
+Free-план Render для Postgres автоматически удаляется через 30 дней —
+`render.yaml` использует `plan: free` по умолчанию (дёшево для старта), но
+перед тем как это станет реальным продакшеном с настоящими данными, нужно
+вручную сменить план в Render Dashboard на платный, иначе база исчезнет.
 
 ### Обязательные переменные в `.env`
 
@@ -233,10 +254,12 @@ nginx, который бы мог сделать это вместо Django.
 `REDIS_HOST=redis`, т.к. внутри docker-сети сервисы видны друг другу по
 имени контейнера, а не по `localhost`.
 
-Для прода на Railway также нужны: `ALLOWED_HOSTS` — домен Railway/кастомный
+Для прода на Render также нужны: `ALLOWED_HOSTS` — домен Render/кастомный
 домен; `CSRF_TRUSTED_ORIGINS` — тот же домен с `https://`; `CORS_ALLOWED_ORIGINS`
 и `FRONTEND_RESET_PASSWORD_URL` — реальный домен фронтенда (по умолчанию оба
 смотрят на `localhost:3000`, что верно только для локальной разработки).
+Все перечисленные выше заводятся в Render Dashboard вручную (см. раздел
+"Продакшен (Render)") — `render.yaml` их специально не заполняет.
 
 **Символы `$` в значениях `.env` (например в `SECRET_KEY`) должны быть
 удвоены (`$$`)** — иначе docker-compose интерпретирует `$X` как ссылку на
@@ -264,16 +287,17 @@ nginx, который бы мог сделать это вместо Django.
       (см. "Опциональные переменные" выше)
 - [x] Докеризация для локальной разработки — `Dockerfile` +
       `docker-compose.yml` (`web`/`db`/`redis`), см. раздел "Docker" выше
-- [x] Продакшен-хардening под Railway (код готов) — `railway.toml`,
-      `whitenoise` + `STATIC_ROOT`, `SECURE_PROXY_SSL_HEADER`,
-      `CSRF_TRUSTED_ORIGINS`, health-check `/health/`, env-driven
+- [x] Продакшен-хардening (код готов, PaaS-агностичный) — `whitenoise` +
+      `STATIC_ROOT`, `SECURE_PROXY_SSL_HEADER`, `CSRF_TRUSTED_ORIGINS`,
+      health-check `/health/`, env-driven
       `CORS_ALLOWED_ORIGINS`/`FRONTEND_RESET_PASSWORD_URL`.
-      См. раздел "Продакшен (Railway)" выше
-- [ ] Сам деплой на Railway: создать проект, добавить плагины Postgres/Redis,
-      смэппить их переменные на наши имена через reference variables,
-      задать `SECRET_KEY`/`AWS_*`/`ALLOWED_HOSTS`/`CSRF_TRUSTED_ORIGINS`/
-      `CORS_ALLOWED_ORIGINS`/`FRONTEND_RESET_PASSWORD_URL` в Railway-дэшборде
-      — это уже действия в самом Railway, не в коде
+      См. раздел "Продакшен (Render)" выше
+- [x] `render.yaml` (корень репозитория) — Blueprint на Postgres + Key Value
+      (Redis) + web-сервис, код готов, не применялся
+- [ ] Применить `render.yaml` в Render Dashboard (New → Blueprint), задать
+      `SECRET_KEY`/`AWS_*`/`EMAIL_*`/`ALLOWED_HOSTS`/`CSRF_TRUSTED_ORIGINS`/
+      `CORS_ALLOWED_ORIGINS`/`FRONTEND_RESET_PASSWORD_URL` в Render-дэшборде
+      — это уже действия в самом Render, не в коде
 - [ ] Донастройка и кастомизация этого CLAUDE.md по ходу работы
 
 ## Как со мной работать

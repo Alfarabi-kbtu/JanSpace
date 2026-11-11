@@ -15,4 +15,4 @@ channels-redis      # channel layer на основе Redis (для переда
 daphne              # ASGI-сервер, нужен вместо обычного WSGI для WebSocket
 redis<5.0.0
 sentry-sdk[django]  # мониторинг и логирование необработанных ошибок (500-х) в Sentry
-whitenoise          # раздача статики (админка, DRF) прямо из Daphne — нужно для Railway (нет nginx перед контейнером)
+whitenoise          # раздача статики (админка, DRF) прямо из Daphne — нужно для Render (нет nginx перед контейнером)

@@ -130,8 +130,8 @@ npm test
 
 ## Деплой
 
-Проект подготовлен к продакшену на Railway (`Backend/railway.toml`,
+Проект подготовлен к продакшену на Render (`render.yaml` в корне репозитория,
 health-check, whitenoise для статики, security-настройки под HTTPS-прокси)
-— см. раздел "Продакшен (Railway)" в `Backend/CLAUDE.md`. Сам деплой
-(создание проекта, подключение Postgres/Redis-плагинов, переменные
-окружения) пока не выполнен.
+— см. раздел "Продакшен (Render)" в `Backend/CLAUDE.md`. Сам деплой
+(применение `render.yaml` через Render Dashboard, переменные окружения)
+пока не выполнен.
