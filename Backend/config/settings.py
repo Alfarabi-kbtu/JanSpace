@@ -211,6 +211,7 @@ REST_FRAMEWORK = {
         "login": "5/minute",             # не больше 5 попыток логина в минуту с одного IP
         "password_reset": "3/minute",
         "register": "5/minute",
+        "catalog_read": "60/minute",     # публичное чтение каталога (categories/products/services/messengers)
     },
     
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
