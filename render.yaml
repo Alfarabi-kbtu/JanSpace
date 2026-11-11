@@ -20,6 +20,10 @@ services:
     type: keyvalue
     region: oregon
     plan: free
+    # Пустой список = запрет ВСЕХ внешних/публичных подключений — нужен
+    # только внутренний доступ из janspace-backend (тот же workspace и
+    # регион), на него этот allow list не распространяется
+    ipAllowList: []
     # Channel layer — потеря сообщений при вытеснении некритична (это не
     # основное хранилище данных, только доставка WebSocket-событий)
     maxmemoryPolicy: allkeys-lru
@@ -69,10 +73,12 @@ services:
       - key: REDIS_HOST
         fromService:
           name: janspace-redis
+          type: keyvalue
           property: host
       - key: REDIS_PORT
         fromService:
           name: janspace-redis
+          type: keyvalue
           property: port
 
       # ---- Константы продакшена ----
