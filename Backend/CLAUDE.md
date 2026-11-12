@@ -207,20 +207,33 @@ nginx/certbot и НЕТ отдельного `docker-compose.prod.yml`.
 Environment после первого применения blueprint'а, в файле они не хранятся.
 
 `render.yaml`'s `dockerCommand` переопределяет команду запуска из Dockerfile —
-вместо `python manage.py runserver` (dev-сервер, не для продакшена)
-продакшен запускается через `daphne -b 0.0.0.0 -p $PORT config.asgi:application`
-($PORT назначает сам Render). `entrypoint.sh` из Dockerfile всё равно
-выполняется первым (ждёт Postgres, делает `migrate` и `collectstatic`) —
-`dockerCommand` лишь подменяет то, что `entrypoint.sh` в итоге запустит
-через `exec "$@"`.
+но на Render это подменяет ВЕСЬ `ENTRYPOINT`+`CMD`, а не только `CMD` (так
+было на Railway: `startCommand` там просто становился аргументом, который
+`entrypoint.sh` передавал дальше через `exec "$@"`). На Render
+`entrypoint.sh` при этом вообще не выполняется — значит, его
+"подождать Postgres → migrate → collectstatic" не происходит само по
+себе. Поэтому `dockerCommand` в `render.yaml` явно прописывает всё это
+сам: `sh -c "python manage.py migrate --noinput && python manage.py
+collectstatic --noinput && daphne -b 0.0.0.0 -p $PORT config.asgi:application"`
+($PORT назначает сам Render). Ждать Postgres (как делал entrypoint.sh
+через `nc`) не нужно — managed Postgres на Render уже поднят и доступен
+ещё до старта этого сервиса, в отличие от docker-compose, где оба
+контейнера стартуют одновременно.
+
+Это обнаружилось на практике при первом деплое: сервис поднялся и
+health-check проходил, но `/api/products/` падал с 500 — таблицы не
+существовали, потому что `migrate` ни разу не выполнился (в логах не
+было ни строчки "Ожидаем Postgres"/"Applying migrations", только сразу
+старт daphne). `collectstatic` тоже не выполнялся — отсюда предупреждение
+`UserWarning: No directory at: /app/staticfiles/` в логах.
 
 `collectstatic` сознательно не запускается на этапе `docker build`: на
 этом этапе ещё нет `SECRET_KEY`/`POSTGRES_*`/`AWS_*` из окружения, а
-`settings.py` требует их сразу при импорте — поэтому `collectstatic`
-запускается в `entrypoint.sh` при СТАРТЕ контейнера, вместе с `migrate`.
-Раздаёт собранную статику `whitenoise` (`STATIC_ROOT`, `WhiteNoiseMiddleware`
-сразу после `SecurityMiddleware`) — на Render перед контейнером нет
-nginx, который бы мог сделать это вместо Django.
+`settings.py` требует их сразу при импорте — поэтому он запускается
+при СТАРТЕ контейнера, частью `dockerCommand`. Раздаёт собранную статику
+`whitenoise` (`STATIC_ROOT`, `WhiteNoiseMiddleware` сразу после
+`SecurityMiddleware`) — на Render перед контейнером нет nginx, который
+бы мог сделать это вместо Django.
 
 `config/urls.py` → `/health/` (`config/views.py::health_check`) — health-check
 для `render.yaml` (`healthCheckPath`), не трогает БД/Redis, чтобы их

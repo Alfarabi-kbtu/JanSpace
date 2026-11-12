@@ -39,12 +39,20 @@ services:
     # "Backend/Backend")
     dockerfilePath: Backend/Dockerfile
     dockerContext: Backend
-    # Переопределяет CMD из Dockerfile (там "python manage.py runserver" —
-    # dev-сервер с автоперезагрузкой, для продакшена не годится).
-    # entrypoint.sh из Dockerfile всё равно выполняется первым (ждёт Postgres,
-    # делает migrate/collectstatic) — dockerCommand лишь подменяет то, что
-    # он в итоге запустит через exec "$@". $PORT назначает сам Render
-    dockerCommand: daphne -b 0.0.0.0 -p $PORT config.asgi:application
+    # На Render dockerCommand подменяет весь ENTRYPOINT+CMD, а не только
+    # CMD (проверено на практике: entrypoint.sh с его "Ожидаем Postgres"/
+    # migrate/collectstatic ни разу не появился в логах деплоя, таблицы
+    # не создавались) — в отличие от Railway, где startCommand лишь
+    # дополнял entrypoint.sh через exec "$@". Поэтому здесь migrate и
+    # collectstatic вызываются явно, без помощи entrypoint.sh. Ждать
+    # готовности Postgres (как делал entrypoint.sh через nc) тут не нужно —
+    # managed Postgres у Render уже поднят и доступен ещё до старта этого
+    # сервиса, в отличие от docker-compose, где оба контейнера стартуют
+    # одновременно. $PORT назначает сам Render
+    dockerCommand: >-
+      sh -c "python manage.py migrate --noinput &&
+      python manage.py collectstatic --noinput &&
+      daphne -b 0.0.0.0 -p $PORT config.asgi:application"
     healthCheckPath: /health/
     envVars:
       # ---- База данных (из блока databases выше — подставляется Render'ом
