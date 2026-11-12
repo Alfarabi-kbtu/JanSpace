@@ -212,25 +212,31 @@ Environment после первого применения blueprint'а, в фа
 `entrypoint.sh` передавал дальше через `exec "$@"`). На Render
 `entrypoint.sh` при этом вообще не выполняется — значит, его
 "подождать Postgres → migrate → collectstatic" не происходит само по
-себе. Поэтому `dockerCommand` в `render.yaml` явно прописывает всё это
-сам: `sh -c "python manage.py migrate --noinput && python manage.py
-collectstatic --noinput && daphne -b 0.0.0.0 -p $PORT config.asgi:application"`
-($PORT назначает сам Render). Ждать Postgres (как делал entrypoint.sh
-через `nc`) не нужно — managed Postgres на Render уже поднят и доступен
-ещё до старта этого сервиса, в отличие от docker-compose, где оба
-контейнера стартуют одновременно.
+себе, и это пришлось переносить в сам `dockerCommand`.
 
-Это обнаружилось на практике при первом деплое: сервис поднялся и
-health-check проходил, но `/api/products/` падал с 500 — таблицы не
-существовали, потому что `migrate` ни разу не выполнился (в логах не
-было ни строчки "Ожидаем Postgres"/"Applying migrations", только сразу
-старт daphne). `collectstatic` тоже не выполнялся — отсюда предупреждение
-`UserWarning: No directory at: /app/staticfiles/` в логах.
+Инлайн-строка вида `dockerCommand: sh -c "migrate && collectstatic &&
+daphne ..."` в самом `render.yaml` тоже не сработала — Render не парсит
+её как обычный shell-скрипт с `&&`/кавычками, а трактует как ОДНУ
+команду с пробелами в имени (падает с `not found`). Поэтому вместо
+инлайн-строки — отдельный файл `Backend/render-start.sh` (migrate →
+collectstatic → `exec daphne -b 0.0.0.0 -p "$PORT" config.asgi:application`),
+а `dockerCommand` — это просто `./render-start.sh`, однозначный
+одиночный токен без догадок о токенизации. `chmod +x` для него — в
+Dockerfile, рядом с `entrypoint.sh`.
+
+Это обнаружилось на практике, по шагам, за три передеплоя подряд: сервис
+поднимался и health-check проходил, но `/api/products/` падал с 500 —
+таблицы не существовали, потому что `migrate` ни разу не выполнился (в
+логах не было ни строчки "Ожидаем Postgres"/"Applying migrations", только
+сразу старт daphne). `collectstatic` тоже не выполнялся — отсюда
+предупреждение `UserWarning: No directory at: /app/staticfiles/` в
+логах. Потом инлайн `sh -c "..."` упал с `not found`, что и привело к
+нынешнему варианту с отдельным файлом.
 
 `collectstatic` сознательно не запускается на этапе `docker build`: на
 этом этапе ещё нет `SECRET_KEY`/`POSTGRES_*`/`AWS_*` из окружения, а
 `settings.py` требует их сразу при импорте — поэтому он запускается
-при СТАРТЕ контейнера, частью `dockerCommand`. Раздаёт собранную статику
+при СТАРТЕ контейнера, в `render-start.sh`. Раздаёт собранную статику
 `whitenoise` (`STATIC_ROOT`, `WhiteNoiseMiddleware` сразу после
 `SecurityMiddleware`) — на Render перед контейнером нет nginx, который
 бы мог сделать это вместо Django.

@@ -43,16 +43,13 @@ services:
     # CMD (проверено на практике: entrypoint.sh с его "Ожидаем Postgres"/
     # migrate/collectstatic ни разу не появился в логах деплоя, таблицы
     # не создавались) — в отличие от Railway, где startCommand лишь
-    # дополнял entrypoint.sh через exec "$@". Поэтому здесь migrate и
-    # collectstatic вызываются явно, без помощи entrypoint.sh. Ждать
-    # готовности Postgres (как делал entrypoint.sh через nc) тут не нужно —
-    # managed Postgres у Render уже поднят и доступен ещё до старта этого
-    # сервиса, в отличие от docker-compose, где оба контейнера стартуют
-    # одновременно. $PORT назначает сам Render
-    dockerCommand: >-
-      sh -c "python manage.py migrate --noinput &&
-      python manage.py collectstatic --noinput &&
-      daphne -b 0.0.0.0 -p $PORT config.asgi:application"
+    # дополнял entrypoint.sh через exec "$@". Инлайн-строка с "&&" и
+    # кавычками тоже не сработала — Render трактовал её не как shell-скрипт,
+    # а как одну команду с пробелами в имени ("not found"). Поэтому
+    # migrate/collectstatic/daphne вынесены в отдельный файл
+    # (Backend/render-start.sh) — однозначный одиночный токен без
+    # догадок о токенизации
+    dockerCommand: ./render-start.sh
     healthCheckPath: /health/
     envVars:
       # ---- База данных (из блока databases выше — подставляется Render'ом

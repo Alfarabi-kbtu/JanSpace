@@ -25,7 +25,7 @@ RUN pip install --no-cache-dir -r requirments.txt
 # Теперь копируем остальной код проекта
 COPY . .
 
-RUN chmod +x entrypoint.sh
+RUN chmod +x entrypoint.sh render-start.sh
 
 EXPOSE 8000
 
