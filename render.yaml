@@ -33,7 +33,10 @@ services:
     runtime: docker
     region: oregon
     plan: free
-    rootDir: Backend
+    # dockerfilePath/dockerContext уже относительны корню репозитория и
+    # сами указывают на Backend/ — rootDir здесь не нужен (и ломает путь:
+    # Render подставляет его перед dockerContext, получая несуществующий
+    # "Backend/Backend")
     dockerfilePath: Backend/Dockerfile
     dockerContext: Backend
     # Переопределяет CMD из Dockerfile (там "python manage.py runserver" —
