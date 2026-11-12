@@ -109,6 +109,17 @@ services:
         sync: false   # https://<домен фронтенда на Vercel>
       - key: FRONTEND_RESET_PASSWORD_URL
         sync: false   # https://<домен фронтенда на Vercel>/reset-password
+      # ---- Бутстрап первого суперюзера (см. render-start.sh) — Render Shell
+      # недоступен на free-плане, поэтому createsuperuser вызывается из
+      # самого стартового скрипта. Можно убрать эти три переменные после
+      # первого успешного создания аккаунта — скрипт не трогает уже
+      # существующего пользователя ----
+      - key: DJANGO_SUPERUSER_USERNAME
+        sync: false
+      - key: DJANGO_SUPERUSER_EMAIL
+        sync: false
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false
       - key: EMAIL_HOST_USER
         sync: false
       - key: EMAIL_HOST_PASSWORD

@@ -241,6 +241,17 @@ Dockerfile, рядом с `entrypoint.sh`.
 `SecurityMiddleware`) — на Render перед контейнером нет nginx, который
 бы мог сделать это вместо Django.
 
+Создание первого суперюзера на проде — тоже через `render-start.sh`, не
+через `python manage.py createsuperuser` вручную: **Render Shell — платная
+фича**, на free-плане (который используется здесь) недоступна вообще.
+`render-start.sh` вызывает `createsuperuser --noinput`, который сам
+читает `DJANGO_SUPERUSER_USERNAME`/`_EMAIL`/`_PASSWORD` из окружения —
+задайте их в Render Dashboard (`sync: false` в `render.yaml`) и
+передеплойте; ошибку "already taken" при повторных деплоях скрипт
+глушит через `|| true`, так что эти переменные можно оставить
+навсегда без вреда. Этот же приём пригодится для любой другой
+одноразовой management-команды на проде без shell-доступа.
+
 `config/urls.py` → `/health/` (`config/views.py::health_check`) — health-check
 для `render.yaml` (`healthCheckPath`), не трогает БД/Redis, чтобы их
 временная недоступность не блокировала сам факт "контейнер поднялся".
